@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="760" viewBox="0 0 1120 760">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#2f4f4f"/>
+    </marker>
+    <style>
+      .page { fill: #f8fafc; }
+      .table { fill: #ffffff; stroke: #1f2937; stroke-width: 1.5; rx: 8; }
+      .header { fill: #0f766e; }
+      .header-alt { fill: #1d4ed8; }
+      .header-text { fill: #ffffff; font-family: Arial, sans-serif; font-size: 18px; font-weight: 700; }
+      .field { fill: #111827; font-family: Arial, sans-serif; font-size: 14px; }
+      .field-muted { fill: #4b5563; font-family: Arial, sans-serif; font-size: 13px; }
+      .title { fill: #111827; font-family: Arial, sans-serif; font-size: 28px; font-weight: 700; }
+      .subtitle { fill: #4b5563; font-family: Arial, sans-serif; font-size: 15px; }
+      .relation { fill: none; stroke: #2f4f4f; stroke-width: 2.2; marker-end: url(#arrow); }
+      .label { fill: #1f2937; font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; }
+    </style>
+  </defs>
+
+  <rect class="page" x="0" y="0" width="1120" height="760"/>
+  <text class="title" x="40" y="50">Database Design - Transactions REST API</text>
+  <text class="subtitle" x="40" y="76">MySQL schema for SIMS PPOB API contract: membership, information, balance, top up, payment, and history</text>
+
+  <g id="users">
+    <rect class="table" x="60" y="130" width="310" height="275"/>
+    <rect class="header" x="60" y="130" width="310" height="46" rx="8"/>
+    <text class="header-text" x="82" y="160">users</text>
+    <text class="field" x="82" y="205">PK id CHAR(36)</text>
+    <text class="field" x="82" y="230">first_name VARCHAR(80)</text>
+    <text class="field" x="82" y="255">last_name VARCHAR(80)</text>
+    <text class="field" x="82" y="280">email VARCHAR(160) UNIQUE</text>
+    <text class="field" x="82" y="305">password_hash VARCHAR(255)</text>
+    <text class="field" x="82" y="330">profile_image VARCHAR(255)</text>
+    <text class="field" x="82" y="355">balance DECIMAL(15,2)</text>
+    <text class="field-muted" x="82" y="382">created_at, updated_at</text>
+  </g>
+
+  <g id="services">
+    <rect class="table" x="750" y="130" width="310" height="275"/>
+    <rect class="header-alt" x="750" y="130" width="310" height="46" rx="8"/>
+    <text class="header-text" x="772" y="160">services</text>
+    <text class="field" x="772" y="205">PK id CHAR(36)</text>
+    <text class="field" x="772" y="230">code VARCHAR(60) UNIQUE</text>
+    <text class="field" x="772" y="255">name VARCHAR(120)</text>
+    <text class="field" x="772" y="280">service_icon VARCHAR(255)</text>
+    <text class="field" x="772" y="305">service_tariff DECIMAL(15,2)</text>
+    <text class="field" x="772" y="330">admin_fee DECIMAL(15,2)</text>
+    <text class="field" x="772" y="355">admin_fee DECIMAL(15,2)</text>
+    <text class="field-muted" x="772" y="382">is_active, created_at, updated_at</text>
+  </g>
+
+  <g id="wallet_transactions">
+    <rect class="table" x="60" y="470" width="420" height="230"/>
+    <rect class="header" x="60" y="470" width="420" height="46" rx="8"/>
+    <text class="header-text" x="82" y="500">wallet_transactions</text>
+    <text class="field" x="82" y="545">PK id CHAR(36)</text>
+    <text class="field" x="82" y="570">FK user_id CHAR(36)</text>
+    <text class="field" x="82" y="595">type ENUM(TOPUP, PAYMENT, REFUND, ADJUSTMENT)</text>
+    <text class="field" x="82" y="620">invoice_number VARCHAR(80) UNIQUE</text>
+    <text class="field" x="82" y="645">amount, balance_before, balance_after DECIMAL(15,2)</text>
+    <text class="field" x="82" y="670">status, reference_type, reference_id</text>
+    <text class="field-muted" x="82" y="695">metadata JSON, created_at, updated_at</text>
+  </g>
+
+  <g id="payment_transactions">
+    <rect class="table" x="610" y="470" width="450" height="230"/>
+    <rect class="header-alt" x="610" y="470" width="450" height="46" rx="8"/>
+    <text class="header-text" x="632" y="500">payment_transactions</text>
+    <text class="field" x="632" y="545">PK id CHAR(36)</text>
+    <text class="field" x="632" y="570">FK user_id CHAR(36)</text>
+    <text class="field" x="632" y="595">FK service_id CHAR(36)</text>
+    <text class="field" x="632" y="620">invoice_number VARCHAR(80) UNIQUE</text>
+    <text class="field" x="632" y="645">customer_number VARCHAR(80) NULL</text>
+    <text class="field" x="632" y="670">amount, admin_fee, total_amount DECIMAL(15,2)</text>
+    <text class="field-muted" x="632" y="695">status, provider_reference, notes, metadata, timestamps</text>
+  </g>
+
+  <path class="relation" d="M215 405 C215 430 215 445 215 468"/>
+  <text class="label" x="235" y="445">1 to many</text>
+
+  <path class="relation" d="M370 275 C495 275 505 585 608 585"/>
+  <text class="label" x="432" y="334">users.id to payment_transactions.user_id</text>
+
+  <path class="relation" d="M905 405 C905 430 905 445 905 468"/>
+  <text class="label" x="925" y="445">1 to many</text>
+
+  <path class="relation" d="M480 585 C535 585 555 585 608 585"/>
+  <text class="label" x="493" y="565">ledger reference</text>
+</svg>

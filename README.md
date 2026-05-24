@@ -55,6 +55,13 @@ npm run migrate:undo:all
 
 Layanan awal akan otomatis di-seed saat aplikasi start jika `SEED_SERVICES=true`.
 
+## Catatan
+
+- File `.env` hanya untuk konfigurasi lokal dan tidak perlu dimasukkan ke Git. Gunakan `.env.example` sebagai template konfigurasi.
+- Pastikan MySQL sudah berjalan sebelum menjalankan migration atau server.
+- Gunakan migration untuk perubahan struktur tabel. `DB_SYNC=true` sebaiknya hanya dipakai untuk prototyping lokal.
+- `package.json` dan `package-lock.json` tetap perlu masuk Git agar dependency project konsisten.
+
 ## Endpoint
 
 - `POST /registration` - registrasi user.
@@ -104,5 +111,3 @@ Gambar ERD tersedia di:
 ```text
 docs/database-design.svg
 ```
-# transactions-app
-# transactions-app
