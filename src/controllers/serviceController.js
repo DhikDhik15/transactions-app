@@ -1,4 +1,4 @@
-const { Service } = require('../models');
+const { queryAll } = require('../database/raw');
 const asyncHandler = require('../utils/asyncHandler');
 const { toMoney } = require('../utils/money');
 const { sendSuccess } = require('../utils/response');
@@ -13,8 +13,8 @@ function serializeService(service) {
   return {
     service_code: service.code,
     service_name: service.name,
-    service_icon: service.icon || 'https://nutech-integrasi.app/dummy.jpg',
-    service_tariff: toMoney(service.price),
+    service_icon: service.service_icon || 'https://nutech-integrasi.app/dummy.jpg',
+    service_tariff: toMoney(service.service_tariff),
   };
 }
 
@@ -23,10 +23,13 @@ const listBanners = asyncHandler(async (req, res) => {
 });
 
 const listServices = asyncHandler(async (req, res) => {
-  const services = await Service.findAll({
-    where: { isActive: true },
-    order: [['createdAt', 'ASC']],
-  });
+  const services = await queryAll(
+    `SELECT code, name, service_icon, service_tariff
+    FROM services
+    WHERE is_active = ?
+    ORDER BY created_at ASC`,
+    [1]
+  );
 
   return sendSuccess(res, 'Sukses', services.map(serializeService));
 });

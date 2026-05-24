@@ -1,4 +1,10 @@
-const { sequelize, User, WalletTransaction } = require('../models');
+const crypto = require('crypto');
+const {
+  executePrepared,
+  queryAll,
+  queryOne,
+  withTransaction,
+} = require('../database/raw');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 const { parsePositiveAmount, toMoney, toNumber } = require('../utils/money');
@@ -11,23 +17,29 @@ function serializeWalletTransaction(transaction) {
     id: transaction.id,
     type: transaction.type,
     amount: toMoney(transaction.amount),
-    balanceBefore: toMoney(transaction.balanceBefore),
-    balanceAfter: toMoney(transaction.balanceAfter),
+    balanceBefore: toMoney(transaction.balance_before),
+    balanceAfter: toMoney(transaction.balance_after),
     status: transaction.status,
     description: transaction.description,
-    referenceType: transaction.referenceType,
-    referenceId: transaction.referenceId,
-    externalReference: transaction.externalReference,
+    referenceType: transaction.reference_type,
+    referenceId: transaction.reference_id,
+    externalReference: transaction.external_reference,
     metadata: transaction.metadata,
-    createdAt: transaction.createdAt,
+    createdAt: transaction.created_at,
   };
 }
 
 const getBalance = asyncHandler(async (req, res) => {
-  const user = await User.findByPk(req.user.id);
+  const user = await queryOne('SELECT balance FROM users WHERE id = ? LIMIT 1', [
+    req.user.id,
+  ]);
+
+  if (!user) {
+    throw new ApiError(401, 'Token tidak tidak valid atau kadaluwarsa', null, 108);
+  }
 
   return sendSuccess(res, 'Get Balance Berhasil', {
-      balance: toMoney(user.balance),
+    balance: toMoney(user.balance),
   });
 });
 
@@ -44,34 +56,66 @@ const topUp = asyncHandler(async (req, res) => {
     );
   }
 
-  const result = await sequelize.transaction(async (transaction) => {
-    const user = await User.findByPk(req.user.id, {
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
+  const result = await withTransaction(async (connection) => {
+    const user = await queryOne(
+      'SELECT id, balance FROM users WHERE id = ? FOR UPDATE',
+      [req.user.id],
+      { connection }
+    );
+
+    if (!user) {
+      throw new ApiError(401, 'Token tidak tidak valid atau kadaluwarsa', null, 108);
+    }
 
     const balanceBefore = toNumber(user.balance);
     const balanceAfter = toMoney(balanceBefore + amount);
 
-    await user.update(
-      {
-        balance: balanceAfter,
-      },
-      { transaction }
+    await executePrepared(
+      `UPDATE users
+      SET balance = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?`,
+      [balanceAfter, user.id],
+      { connection }
     );
 
-    const walletTransaction = await WalletTransaction.create(
-      {
-        userId: user.id,
-        type: 'TOPUP',
-        invoiceNumber: generateInvoiceNumber(),
+    const walletTransaction = {
+      id: crypto.randomUUID(),
+      user_id: user.id,
+      type: 'TOPUP',
+      invoice_number: generateInvoiceNumber(),
+      amount,
+      balance_before: balanceBefore,
+      balance_after: balanceAfter,
+      status: 'SUCCESS',
+      description: 'Top Up balance',
+    };
+
+    await executePrepared(
+      `INSERT INTO wallet_transactions (
+        id,
+        user_id,
+        type,
+        invoice_number,
         amount,
-        balanceBefore,
-        balanceAfter,
-        status: 'SUCCESS',
-        description: 'Top Up balance',
-      },
-      { transaction }
+        balance_before,
+        balance_after,
+        status,
+        description,
+        created_at,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [
+        walletTransaction.id,
+        walletTransaction.user_id,
+        walletTransaction.type,
+        walletTransaction.invoice_number,
+        walletTransaction.amount,
+        walletTransaction.balance_before,
+        walletTransaction.balance_after,
+        walletTransaction.status,
+        walletTransaction.description,
+      ],
+      { connection }
     );
 
     return {
@@ -88,14 +132,26 @@ const topUp = asyncHandler(async (req, res) => {
 const listTopUps = asyncHandler(async (req, res) => {
   const limit = parseLimit(req.query.limit);
 
-  const topUps = await WalletTransaction.findAll({
-    where: {
-      userId: req.user.id,
-      type: 'TOPUP',
-    },
-    order: [['createdAt', 'DESC']],
-    limit,
-  });
+  const topUps = await queryAll(
+    `SELECT
+      id,
+      type,
+      amount,
+      balance_before,
+      balance_after,
+      status,
+      description,
+      reference_type,
+      reference_id,
+      external_reference,
+      metadata,
+      created_at
+    FROM wallet_transactions
+    WHERE user_id = ? AND type = ?
+    ORDER BY created_at DESC
+    LIMIT ?`,
+    [req.user.id, 'TOPUP', limit]
+  );
 
   return sendSuccess(res, 'Sukses', topUps.map(serializeWalletTransaction));
 });

@@ -12,6 +12,7 @@ REST API Node.js/Express yang mengikuti kontrak API SIMS PPOB dari Nutech untuk 
 - Transaksi pembayaran yang memotong saldo secara atomik menggunakan transaksi database.
 - History transaksi gabungan TOPUP dan PAYMENT.
 - Database MySQL dengan Sequelize dan migration `up/down`.
+- Endpoint utama menggunakan raw query dengan prepared statement via `mysql2.execute`.
 - Dokumentasi Swagger/OpenAPI di `/api-docs`.
 - Gambar desain database di `docs/database-design.svg`.
 
@@ -60,6 +61,7 @@ Layanan awal akan otomatis di-seed saat aplikasi start jika `SEED_SERVICES=true`
 - File `.env` hanya untuk konfigurasi lokal dan tidak perlu dimasukkan ke Git. Gunakan `.env.example` sebagai template konfigurasi.
 - Pastikan MySQL sudah berjalan sebelum menjalankan migration atau server.
 - Gunakan migration untuk perubahan struktur tabel. `DB_SYNC=true` sebaiknya hanya dipakai untuk prototyping lokal.
+- Query pada controller dan auth middleware memakai placeholder parameter (`?`) agar input tidak disisipkan langsung ke SQL.
 - `package.json` dan `package-lock.json` tetap perlu masuk Git agar dependency project konsisten.
 
 ## Endpoint

@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const { executePrepared, queryOne } = require('../database/raw');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 const { sendSuccess } = require('../utils/response');
@@ -26,9 +27,9 @@ function signToken(user) {
 function serializeProfile(user) {
   return {
     email: user.email,
-    first_name: user.firstName,
-    last_name: user.lastName,
-    profile_image: user.profileImage || null,
+    first_name: user.first_name,
+    last_name: user.last_name,
+    profile_image: user.profile_image || null,
   };
 }
 
@@ -47,18 +48,28 @@ const register = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Password minimal 8 karakter', null, 102);
   }
 
-  const existingUser = await User.findOne({ where: { email } });
+  const existingUser = await queryOne('SELECT id FROM users WHERE email = ? LIMIT 1', [
+    email,
+  ]);
   if (existingUser) {
     throw new ApiError(409, 'Email sudah terdaftar', null, 102);
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  await User.create({
-    email,
-    firstName,
-    lastName,
-    passwordHash,
-  });
+  await executePrepared(
+    `INSERT INTO users (
+      id,
+      first_name,
+      last_name,
+      email,
+      password_hash,
+      balance,
+      status,
+      created_at,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, 0, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [crypto.randomUUID(), firstName, lastName, email, passwordHash]
+  );
 
   return sendSuccess(res, 'Registrasi berhasil silahkan login');
 });
@@ -74,12 +85,26 @@ const login = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Password minimal 8 karakter', null, 102);
   }
 
-  const user = await User.findOne({ where: { email } });
+  const user = await queryOne(
+    `SELECT
+      id,
+      email,
+      first_name,
+      last_name,
+      password_hash,
+      profile_image,
+      balance,
+      status
+    FROM users
+    WHERE email = ?
+    LIMIT 1`,
+    [email]
+  );
   if (!user) {
     throw new ApiError(401, 'Username atau password salah', null, 103);
   }
 
-  const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+  const isPasswordValid = await bcrypt.compare(password, user.password_hash);
   if (!isPasswordValid) {
     throw new ApiError(401, 'Username atau password salah', null, 103);
   }
@@ -100,10 +125,15 @@ const updateProfile = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Parameter first_name dan last_name wajib diisi', null, 102);
   }
 
-  await req.user.update({
-    firstName,
-    lastName,
-  });
+  await executePrepared(
+    `UPDATE users
+    SET first_name = ?, last_name = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?`,
+    [firstName, lastName, req.user.id]
+  );
+
+  req.user.first_name = firstName;
+  req.user.last_name = lastName;
 
   return sendSuccess(res, 'Update Pofile berhasil', serializeProfile(req.user));
 });
@@ -125,7 +155,14 @@ const updateProfileImage = asyncHandler(async (req, res) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   const profileImage = `${baseUrl}/uploads/profile-${req.user.id}.${extension}`;
 
-  await req.user.update({ profileImage });
+  await executePrepared(
+    `UPDATE users
+    SET profile_image = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?`,
+    [profileImage, req.user.id]
+  );
+
+  req.user.profile_image = profileImage;
 
   return sendSuccess(res, 'Update Profile Image berhasil', serializeProfile(req.user));
 });

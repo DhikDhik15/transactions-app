@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const { queryOne } = require('../database/raw');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 
@@ -21,8 +21,34 @@ const auth = asyncHandler(async (req, res, next) => {
   }
 
   const user = payload.email
-    ? await User.findOne({ where: { email: payload.email } })
-    : await User.findByPk(payload.sub);
+    ? await queryOne(
+        `SELECT
+          id,
+          email,
+          first_name,
+          last_name,
+          profile_image,
+          balance,
+          status
+        FROM users
+        WHERE email = ?
+        LIMIT 1`,
+        [payload.email]
+      )
+    : await queryOne(
+        `SELECT
+          id,
+          email,
+          first_name,
+          last_name,
+          profile_image,
+          balance,
+          status
+        FROM users
+        WHERE id = ?
+        LIMIT 1`,
+        [payload.sub]
+      );
 
   if (!user) {
     throw new ApiError(401, 'Token tidak tidak valid atau kadaluwarsa', null, 108);

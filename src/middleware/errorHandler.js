@@ -22,6 +22,14 @@ function notFoundHandler(req, res, next) {
 }
 
 function errorHandler(error, req, res, next) {
+  if (error && error.code === 'ER_DUP_ENTRY') {
+    return res.status(409).json({
+      status: 102,
+      message: 'Data sudah terdaftar',
+      data: null,
+    });
+  }
+
   if (error instanceof UniqueConstraintError) {
     return res.status(409).json({
       status: 102,
