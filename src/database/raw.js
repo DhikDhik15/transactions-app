@@ -1,20 +1,32 @@
 require('dotenv').config({ quiet: true });
 
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 
 let pool;
 
 function getPool() {
   if (!pool) {
-    pool = mysql.createPool({
-      host: process.env.DB_HOST || '127.0.0.1',
-      port: Number(process.env.DB_PORT || 3306),
-      database: process.env.DB_NAME || 'transactions_app',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      timezone: process.env.DB_TIMEZONE || '+07:00',
-      waitForConnections: true,
-      connectionLimit: Number(process.env.DB_POOL_LIMIT || 10),
+    const config = process.env.DATABASE_URL
+      ? {
+          connectionString: process.env.DATABASE_URL,
+          ssl: {
+            rejectUnauthorized: false,
+          },
+        }
+      : {
+          host: process.env.DB_HOST || '127.0.0.1',
+          port: Number(process.env.DB_PORT || 5432),
+          database: process.env.DB_NAME || 'transactions_app',
+          user: process.env.DB_USER || 'postgres',
+          password: process.env.DB_PASSWORD || '',
+          statement_timeout: 30000,
+        };
+
+    pool = new Pool({
+      ...config,
+      max: Number(process.env.DB_POOL_LIMIT || 10),
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
     });
   }
 
@@ -22,9 +34,9 @@ function getPool() {
 }
 
 async function executePrepared(sql, params = [], options = {}) {
-  const executor = options.connection || getPool();
-  const [rows] = await executor.execute(sql, params);
-  return rows;
+  const client = options.connection || getPool();
+  const result = await client.query(sql, params);
+  return result.rows;
 }
 
 async function queryAll(sql, params = [], options = {}) {
@@ -37,18 +49,18 @@ async function queryOne(sql, params = [], options = {}) {
 }
 
 async function withTransaction(callback) {
-  const connection = await getPool().getConnection();
+  const client = await getPool().connect();
 
   try {
-    await connection.beginTransaction();
-    const result = await callback(connection);
-    await connection.commit();
+    await client.query('BEGIN');
+    const result = await callback(client);
+    await client.query('COMMIT');
     return result;
   } catch (error) {
-    await connection.rollback();
+    await client.query('ROLLBACK');
     throw error;
   } finally {
-    connection.release();
+    client.release();
   }
 }
 
